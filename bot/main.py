@@ -101,7 +101,7 @@ async def on_url(
     status = await update.message.reply_text("🔎 Проверяю ссылку…")
 
     try:
-        info = await asyncio.to_thread(downloader.probe, url)
+        info = await asyncio.to_thread(downloader.probe, url, config.cookies_file)
     except downloader.DownloadError as exc:
         await status.edit_text(f"❌ Не удалось прочитать эту ссылку.\n\n`{_clip(str(exc))}`",
                                parse_mode="Markdown")
@@ -167,6 +167,8 @@ async def on_choice(
             config.download_dir,
             fmt,
             config.max_filesize_bytes,
+            None,
+            config.cookies_file,
         )
     except downloader.DownloadError as exc:
         await query.edit_message_text(
@@ -186,6 +188,8 @@ async def on_choice(
             else:
                 await context.bot.send_video(
                     chat_id, fh, caption=result.title, supports_streaming=True,
+                    width=result.width, height=result.height,
+                    duration=result.duration,
                     read_timeout=120, write_timeout=120,
                 )
         await query.edit_message_text("✅ Готово!")

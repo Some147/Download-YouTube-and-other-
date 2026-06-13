@@ -124,6 +124,21 @@ doesn't run an HTTP health check against it.
 
 > A `railway.json` is also included if you ever switch back to Railway.
 
+## YouTube on a server ("confirm you're not a bot")
+
+YouTube blocks requests from datacenter IPs (most VPS/cloud providers) and asks
+to "Sign in to confirm you're not a bot". Fix it by giving yt-dlp cookies from a
+logged-in YouTube account:
+
+1. In a browser logged into YouTube, export cookies to `cookies.txt` (Netscape
+   format) using an extension like *Get cookies.txt LOCALLY*.
+2. Put `cookies.txt` in the project folder (next to `docker-compose.yml`).
+3. Uncomment the `./cookies.txt:/app/cookies.txt:ro` line in `docker-compose.yml`.
+4. Restart: `docker compose up -d --build`.
+
+The bot auto-detects `cookies.txt`, or set a custom path via `COOKIES_FILE`.
+Other sites (Instagram, TikTok, etc.) usually work without cookies.
+
 ## Notes & limits
 
 - Telegram bots can upload files up to **50 MB** by default. For larger files,

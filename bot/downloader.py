@@ -19,6 +19,9 @@ class DownloadResult:
     path: Path
     title: str
     filesize: int
+    width: Optional[int] = None
+    height: Optional[int] = None
+    duration: Optional[int] = None
 
 
 @dataclass
@@ -46,7 +49,12 @@ def _filesize_format(fmt: str) -> str:
     return "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
 
 
-def probe(url: str) -> MediaInfo:
+def _apply_cookies(opts: dict, cookies_file: Optional[Path]) -> None:
+    if cookies_file and cookies_file.exists():
+        opts["cookiefile"] = str(cookies_file)
+
+
+def probe(url: str, cookies_file: Optional[Path] = None) -> MediaInfo:
     """Fetch metadata for a URL without downloading."""
     opts = {
         "quiet": True,
@@ -54,6 +62,7 @@ def probe(url: str) -> MediaInfo:
         "noplaylist": True,
         "skip_download": True,
     }
+    _apply_cookies(opts, cookies_file)
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -81,6 +90,7 @@ def download(
     fmt: str = "best",
     max_filesize_bytes: Optional[int] = None,
     progress_hook: Optional[Callable[[dict], None]] = None,
+    cookies_file: Optional[Path] = None,
 ) -> DownloadResult:
     """Download a video/audio file and return its path.
 
@@ -121,6 +131,8 @@ def download(
     if progress_hook is not None:
         opts["progress_hooks"] = [progress_hook]
 
+    _apply_cookies(opts, cookies_file)
+
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -146,8 +158,29 @@ def download(
             f"File is too large ({filesize / 1024 / 1024:.1f} MB) to send via Telegram."
         )
 
+    width, height = _extract_dimensions(info)
+
     return DownloadResult(
         path=filepath,
         title=info.get("title") or filepath.stem,
         filesize=filesize,
+        width=width,
+        height=height,
+        duration=info.get("duration"),
     )
+
+
+def _extract_dimensions(info: dict) -> tuple[Optional[int], Optional[int]]:
+    """Pull video width/height so Telegram renders the correct aspect ratio.
+
+    For merged downloads the top-level ``width``/``height`` may be missing, so
+    fall back to the video stream listed in ``requested_formats``.
+    """
+    width = info.get("width")
+    height = info.get("height")
+    if not (width and height):
+        for fmt in info.get("requested_formats") or []:
+            if fmt.get("width") and fmt.get("height"):
+                width, height = fmt["width"], fmt["height"]
+                break
+    return width, height

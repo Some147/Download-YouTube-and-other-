@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 
 def _load_dotenv() -> None:
@@ -41,6 +42,7 @@ class Config:
     max_filesize_mb: int = 50
     download_dir: Path = field(default_factory=lambda: Path("downloads"))
     allowed_user_ids: set[int] = field(default_factory=set)
+    cookies_file: Optional[Path] = None
 
     @property
     def max_filesize_bytes(self) -> int:
@@ -67,9 +69,21 @@ class Config:
 
         allowed = _parse_user_ids(os.environ.get("ALLOWED_USER_IDS", ""))
 
+        # Optional cookies file (Netscape format) to bypass "confirm you're not
+        # a bot" checks on YouTube and to access age/region-restricted content.
+        cookies_file: Optional[Path] = None
+        raw_cookies = os.environ.get("COOKIES_FILE", "").strip()
+        if not raw_cookies and Path("cookies.txt").exists():
+            raw_cookies = "cookies.txt"
+        if raw_cookies:
+            candidate = Path(raw_cookies)
+            if candidate.exists():
+                cookies_file = candidate
+
         return cls(
             bot_token=token,
             max_filesize_mb=max_mb,
             download_dir=download_dir,
             allowed_user_ids=allowed,
+            cookies_file=cookies_file,
         )

@@ -7,3 +7,7 @@ services:
     # Keeps downloaded files out of the image / off the container layer.
     volumes:
       - ./downloads:/app/downloads
+      # To download from YouTube on a server (which YouTube blocks as a "bot"),
+      # export cookies.txt from a logged-in browser, place it next to this file,
+      # then uncomment the line below and run: docker compose up -d
+      # - ./cookies.txt:/app/cookies.txt:ro
