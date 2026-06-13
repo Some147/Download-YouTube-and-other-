@@ -101,15 +101,22 @@ sudo systemctl enable --now telegram-downloader-bot
 
 `Restart=always` keeps it running. Follow logs: `journalctl -u telegram-downloader-bot -f`.
 
-### Option 3 — Railway / Render (deploy from GitHub)
+### Option 3 — Railway (deploy from GitHub via Docker)
 
-- Create a new project from this GitHub repo.
-- The included `Procfile` runs `python -m bot.main` as a **worker** (not a web service).
-- Add `BOT_TOKEN` (and optional `MAX_FILESIZE_MB`, `ALLOWED_USER_IDS`) as
-  environment variables in the dashboard.
+This repo ships a `railway.json` that tells Railway to build with the `Dockerfile`
+and restart the bot on failure.
 
-> ⚠️ Free tiers that "sleep" idle apps are not suitable for a polling bot — use a
-> worker/always-on plan, or Docker/VPS above.
+1. On [railway.app](https://railway.app): **New Project → Deploy from GitHub repo**
+   and pick this repository / branch.
+2. Railway detects `railway.json` and builds the Docker image automatically
+   (no port needed — it's a background worker, not a web service).
+3. Open the service → **Variables** and add:
+   - `BOT_TOKEN` — your @BotFather token (**required**)
+   - `MAX_FILESIZE_MB` — optional (default `50`)
+   - `ALLOWED_USER_IDS` — optional, comma-separated
+4. Deploy. Check **Deployments → Logs** for `Bot started.`
+
+> ⚠️ Set the token only in Railway Variables — never commit it to the repo.
 
 ## Notes & limits
 
