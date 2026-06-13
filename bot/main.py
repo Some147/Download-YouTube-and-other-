@@ -39,22 +39,22 @@ logger = logging.getLogger(__name__)
 URL_RE = re.compile(r"https?://[^\s]+")
 
 WELCOME = (
-    "👋 *Video Downloader*\n\n"
-    "Send me a link to a video from YouTube, Twitter/X, TikTok, Instagram, "
-    "Vimeo and 1000+ other sites — I'll download it for you.\n\n"
-    "Powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp)."
+    "👋 *Загрузчик видео*\n\n"
+    "Пришлите мне ссылку на видео с YouTube, Twitter/X, TikTok, Instagram, "
+    "Vimeo и 1000+ других сайтов — и я скачаю его для вас."
 )
 
 HELP = (
-    "*How to use:*\n"
-    "1. Send me any video URL.\n"
-    "2. Pick a quality / format.\n"
-    "3. Wait for the file.\n\n"
-    "*Commands:*\n"
-    "/start — show welcome message\n"
-    "/help — show this help\n\n"
-    "_Note: Telegram limits bot uploads, so very large videos may be "
-    "rejected. Try a lower quality or audio-only._"
+    "*Как пользоваться:*\n"
+    "1. Пришлите ссылку на видео.\n"
+    "2. Выберите качество / формат.\n"
+    "3. Дождитесь файла.\n\n"
+    "*Команды:*\n"
+    "/start — показать приветствие\n"
+    "/help — показать эту справку\n\n"
+    "_Внимание: Telegram ограничивает размер загружаемых ботом файлов, "
+    "поэтому очень большие видео могут не отправиться. Попробуйте качество "
+    "пониже или только аудио._"
 )
 
 
@@ -87,23 +87,23 @@ async def on_url(
     update: Update, context: ContextTypes.DEFAULT_TYPE, config: Config
 ) -> None:
     if not _is_allowed(config, update):
-        await update.message.reply_text("⛔ You are not authorized to use this bot.")
+        await update.message.reply_text("⛔ У вас нет доступа к этому боту.")
         return
 
     match = URL_RE.search(update.message.text or "")
     if not match:
         await update.message.reply_text(
-            "Please send a valid video URL (starting with http:// or https://)."
+            "Пришлите корректную ссылку на видео (начинается с http:// или https://)."
         )
         return
 
     url = match.group(0)
-    status = await update.message.reply_text("🔎 Checking link…")
+    status = await update.message.reply_text("🔎 Проверяю ссылку…")
 
     try:
         info = await asyncio.to_thread(downloader.probe, url)
     except downloader.DownloadError as exc:
-        await status.edit_text(f"❌ Could not read this link.\n\n`{_clip(str(exc))}`",
+        await status.edit_text(f"❌ Не удалось прочитать эту ссылку.\n\n`{_clip(str(exc))}`",
                                parse_mode="Markdown")
         return
 
@@ -128,7 +128,7 @@ async def on_url(
         caption += f"\n👤 {info.uploader}"
     if duration:
         caption += f"\n⏱ {duration}"
-    caption += "\n\nChoose a format:"
+    caption += "\n\nВыберите формат:"
 
     await status.edit_text(
         caption, reply_markup=keyboard, parse_mode="Markdown",
@@ -145,17 +145,17 @@ async def on_choice(
     try:
         _, token, fmt = query.data.split(":", 2)
     except ValueError:
-        await query.edit_message_text("⚠️ Invalid selection.")
+        await query.edit_message_text("⚠️ Некорректный выбор.")
         return
 
     url = context.chat_data.get(token)
     if not url:
         await query.edit_message_text(
-            "⚠️ This request expired. Please send the link again."
+            "⚠️ Срок запроса истёк. Пришлите ссылку ещё раз."
         )
         return
 
-    await query.edit_message_text("⏬ Downloading…")
+    await query.edit_message_text("⏬ Скачиваю…")
     chat_id = query.message.chat_id
 
     await context.bot.send_chat_action(chat_id, ChatAction.UPLOAD_VIDEO)
@@ -170,11 +170,11 @@ async def on_choice(
         )
     except downloader.DownloadError as exc:
         await query.edit_message_text(
-            f"❌ Download failed.\n\n`{_clip(str(exc))}`", parse_mode="Markdown"
+            f"❌ Не удалось скачать.\n\n`{_clip(str(exc))}`", parse_mode="Markdown"
         )
         return
 
-    await query.edit_message_text("📤 Uploading to Telegram…")
+    await query.edit_message_text("📤 Загружаю в Telegram…")
 
     try:
         with result.path.open("rb") as fh:
@@ -188,11 +188,11 @@ async def on_choice(
                     chat_id, fh, caption=result.title, supports_streaming=True,
                     read_timeout=120, write_timeout=120,
                 )
-        await query.edit_message_text("✅ Done!")
+        await query.edit_message_text("✅ Готово!")
     except Exception as exc:  # noqa: BLE001 - surface upload errors to the user
         logger.exception("Failed to send file")
         await query.edit_message_text(
-            f"❌ Could not upload the file.\n\n`{_clip(str(exc))}`",
+            f"❌ Не удалось отправить файл.\n\n`{_clip(str(exc))}`",
             parse_mode="Markdown",
         )
     finally:
@@ -213,8 +213,8 @@ async def _post_init(app: Application) -> None:
     """Register the Telegram commands menu (the button next to the input box)."""
     await app.bot.set_my_commands(
         [
-            BotCommand("start", "Start / show welcome"),
-            BotCommand("help", "How to use the bot"),
+            BotCommand("start", "Запустить / показать приветствие"),
+            BotCommand("help", "Как пользоваться ботом"),
         ]
     )
 
