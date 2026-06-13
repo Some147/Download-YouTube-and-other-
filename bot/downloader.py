@@ -15,6 +15,11 @@ import yt_dlp
 
 logger = logging.getLogger(__name__)
 
+# YouTube often hides audio-only formats from the default web client on server
+# IPs (causing "Requested format is not available"). Trying the tv/ios clients
+# usually returns full formats including audio.
+_EXTRACTOR_ARGS = {"youtube": {"player_client": ["default", "tv", "ios"]}}
+
 
 class _YtdlpLogger:
     """Forwards yt-dlp's own messages into our logs so failures are visible."""
@@ -98,6 +103,7 @@ def probe(url: str, cookies_file: Optional[Path] = None) -> MediaInfo:
         "skip_download": True,
         "socket_timeout": 30,
         "logger": _YtdlpLogger(),
+        "extractor_args": _EXTRACTOR_ARGS,
     }
     _apply_cookies(opts, cookies_file)
     try:
@@ -149,6 +155,7 @@ def download(
         "fragment_retries": 3,
         "socket_timeout": 30,
         "logger": _YtdlpLogger(),
+        "extractor_args": _EXTRACTOR_ARGS,
     }
 
     if fmt == "audio":
