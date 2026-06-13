@@ -7,6 +7,10 @@ env/
 
 .env
 
+# Credentials — never commit these
+cookies.txt
+*.cookies
+
 downloads/
 *.part
 *.ytdl
