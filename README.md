@@ -127,17 +127,37 @@ doesn't run an HTTP health check against it.
 ## YouTube on a server ("confirm you're not a bot")
 
 YouTube blocks requests from datacenter IPs (most VPS/cloud providers) and asks
-to "Sign in to confirm you're not a bot". Fix it by giving yt-dlp cookies from a
-logged-in YouTube account:
+to "Sign in to confirm you're not a bot", or returns no audio formats
+("Requested format is not available"). This bot follows the upstream
+[yt-dlp guidance](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies):
 
-1. In a browser logged into YouTube, export cookies to `cookies.txt` (Netscape
-   format) using an extension like *Get cookies.txt LOCALLY*.
-2. Put `cookies.txt` in the project folder (next to `docker-compose.yml`).
-3. Uncomment the `./cookies.txt:/app/cookies.txt:ro` line in `docker-compose.yml`.
-4. Restart: `docker compose up -d --build`.
+**1. Provide cookies (export them the way yt-dlp recommends):**
+   - Open a **new private/incognito window** and log into YouTube.
+   - In the same tab, open `https://www.youtube.com/robots.txt`.
+   - Export `youtube.com` cookies to `cookies.txt` (Netscape format) with an
+     extension like *Get cookies.txt LOCALLY*.
+   - **Close the incognito window** (do not log out — that invalidates the cookies).
+   - Upload `cookies.txt` next to `docker-compose.yml` (it is mounted automatically),
+     then `docker compose restart`.
+
+**2. Player clients:** the bot asks yt-dlp to try the `tv` / `web_embedded` /
+   `android_vr` clients, which per the
+   [PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide) do **not**
+   require a PO Token, before the default web client.
+
+> ⚠️ YouTube is gradually enforcing **PO Tokens**, which yt-dlp cannot generate
+> itself. If cookies + the clients above stop working, you need a
+> [PO Token Provider plugin](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide)
+> (e.g. bgutil) — this is an upstream YouTube limitation, not a bot bug.
 
 The bot auto-detects `cookies.txt`, or set a custom path via `COOKIES_FILE`.
-Other sites (Instagram, TikTok, etc.) usually work without cookies.
+Other sites (Instagram posts/Reels, TikTok, etc.) usually work without cookies;
+Instagram **stories** additionally require active (≤24h) content and valid
+`instagram.com` cookies.
+
+> When changing anything related to YouTube/format selection/cookies, always
+> cross-check the current [yt-dlp docs](https://github.com/yt-dlp/yt-dlp) and
+> wiki first — YouTube changes often and upstream is the source of truth.
 
 ## Notes & limits
 

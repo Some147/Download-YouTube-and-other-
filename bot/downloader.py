@@ -15,10 +15,13 @@ import yt_dlp
 
 logger = logging.getLogger(__name__)
 
-# YouTube often hides audio-only formats from the default web client on server
-# IPs (causing "Requested format is not available"). Trying the tv/ios clients
-# usually returns full formats including audio.
-_EXTRACTOR_ARGS = {"youtube": {"player_client": ["default", "tv", "ios"]}}
+# YouTube hides formats from the web client on server IPs (causing "Requested
+# format is not available" / "Sign in to confirm you're not a bot"). Per the
+# yt-dlp PO Token Guide, the tv / web_embedded / android_vr clients do not
+# require a PO Token, so prefer them before falling back to the default client.
+_EXTRACTOR_ARGS = {
+    "youtube": {"player_client": ["default", "tv", "web_embedded", "android_vr"]}
+}
 
 
 class _YtdlpLogger:
