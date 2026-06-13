@@ -16,6 +16,22 @@ import yt_dlp
 logger = logging.getLogger(__name__)
 
 
+class _YtdlpLogger:
+    """Forwards yt-dlp's own messages into our logs so failures are visible."""
+
+    def debug(self, msg: str) -> None:
+        pass
+
+    def info(self, msg: str) -> None:
+        pass
+
+    def warning(self, msg: str) -> None:
+        logger.warning("yt-dlp: %s", msg)
+
+    def error(self, msg: str) -> None:
+        logger.error("yt-dlp: %s", msg)
+
+
 class DownloadError(Exception):
     """Raised when a download cannot be completed."""
 
@@ -78,10 +94,10 @@ def probe(url: str, cookies_file: Optional[Path] = None) -> MediaInfo:
     """Fetch metadata for a URL without downloading."""
     opts = {
         "quiet": True,
-        "no_warnings": True,
         "noplaylist": True,
         "skip_download": True,
         "socket_timeout": 30,
+        "logger": _YtdlpLogger(),
     }
     _apply_cookies(opts, cookies_file)
     try:
@@ -132,6 +148,7 @@ def download(
         "retries": 3,
         "fragment_retries": 3,
         "socket_timeout": 30,
+        "logger": _YtdlpLogger(),
     }
 
     if fmt == "audio":
