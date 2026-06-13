@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
 import tempfile
 import uuid
 from dataclasses import dataclass
@@ -41,13 +42,20 @@ def _filesize_format(fmt: str) -> str:
     """
     if fmt == "audio":
         return "bestaudio/best"
+    # Prefer H.264 (avc1) video + AAC audio so the result plays on mobile
+    # Telegram, but always fall back to any best stream so we never hit
+    # "format not available".
+    compat = "[vcodec~='^(avc|h264)']"
+    aac = "[acodec~='^(mp4a|aac)']"
     if fmt in {"720", "480", "360"}:
         h = fmt
-        # bv*/ba = any best video/audio; fall back to a combined stream, and
-        # finally to an uncapped best so we never hit "format not available".
-        return f"bv*[height<={h}]+ba/b[height<={h}]/bv*+ba/b"
+        return (
+            f"bv*[height<={h}]{compat}+ba{aac}/"
+            f"b[height<={h}]{compat}/"
+            f"bv*[height<={h}]+ba/b[height<={h}]/bv*+ba/b"
+        )
     # default "best"
-    return "bv*+ba/b"
+    return f"bv*{compat}+ba{aac}/b{compat}/bv*+ba/b"
 
 
 def _apply_cookies(opts: dict, cookies_file: Optional[Path]) -> None:
@@ -162,6 +170,9 @@ def download(
             raise DownloadError("Downloaded file could not be located.")
         filepath = candidates[0]
 
+    if fmt != "audio":
+        _ensure_faststart(filepath)
+
     filesize = filepath.stat().st_size
     if max_filesize_bytes and filesize > max_filesize_bytes:
         filepath.unlink(missing_ok=True)
@@ -179,6 +190,30 @@ def download(
         height=height,
         duration=info.get("duration"),
     )
+
+
+def _ensure_faststart(path: Path) -> None:
+    """Move the MP4 moov atom to the front so mobile Telegram can stream it.
+
+    Without this, videos often play on desktop but show only a thumbnail and
+    audio on phones. This is a fast stream copy (no re-encoding).
+    """
+    if path.suffix.lower() != ".mp4" or not path.exists():
+        return
+    tmp = path.with_name(path.stem + "_fs.mp4")
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-loglevel", "error", "-i", str(path),
+                "-c", "copy", "-movflags", "+faststart", str(tmp),
+            ],
+            check=True,
+            timeout=180,
+        )
+    except (subprocess.SubprocessError, OSError):
+        tmp.unlink(missing_ok=True)
+        return
+    tmp.replace(path)
 
 
 def _extract_dimensions(info: dict) -> tuple[Optional[int], Optional[int]]:
