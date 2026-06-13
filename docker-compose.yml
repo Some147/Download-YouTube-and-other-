@@ -1,0 +1,9 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Keeps downloaded files out of the image / off the container layer.
+    volumes:
+      - ./downloads:/app/downloads

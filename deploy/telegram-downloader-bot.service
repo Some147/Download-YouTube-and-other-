@@ -1,0 +1,30 @@
+# systemd unit for running the bot 24/7 on a Linux VPS (without Docker).
+#
+# Setup:
+#   sudo cp deploy/telegram-downloader-bot.service /etc/systemd/system/
+#   # edit User= and WorkingDirectory= below to match your setup
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now telegram-downloader-bot
+#
+# Logs:    journalctl -u telegram-downloader-bot -f
+# Restart: sudo systemctl restart telegram-downloader-bot
+
+[Unit]
+Description=Telegram Video Downloader Bot (yt-dlp)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/opt/Download-YouTube-and-other-
+# Use the venv's python; create it with:
+#   python3 -m venv /opt/Download-YouTube-and-other-/.venv
+#   /opt/Download-YouTube-and-other-/.venv/bin/pip install -r requirements.txt
+ExecStart=/opt/Download-YouTube-and-other-/.venv/bin/python -m bot.main
+EnvironmentFile=/opt/Download-YouTube-and-other-/.env
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
