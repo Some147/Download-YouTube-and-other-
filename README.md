@@ -140,7 +140,14 @@ to "Sign in to confirm you're not a bot", or returns no audio formats
    - Upload `cookies.txt` next to `docker-compose.yml` (it is mounted automatically),
      then `docker compose restart`.
 
-**2. Player clients:** the bot asks yt-dlp to try the `tv` / `web_embedded` /
+**2. JavaScript runtime:** YouTube requires solving a JS "n-challenge" or it
+   returns only storyboard images. Per the
+   [EJS guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS), the Docker image
+   installs **Deno** and `yt-dlp[default]` (the EJS solver scripts) so yt-dlp can
+   solve it. If you run the bot without Docker, install Deno (≥2.3.0) and
+   `pip install -U "yt-dlp[default]"` yourself.
+
+**3. Player clients:** the bot asks yt-dlp to try the `tv` / `web_embedded` /
    `android_vr` clients, which per the
    [PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide) do **not**
    require a PO Token, before the default web client.

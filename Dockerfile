@@ -1,9 +1,15 @@
 FROM python:3.12-slim
 
-# ffmpeg is required by yt-dlp to merge video+audio and extract MP3.
+# ffmpeg merges video+audio / extracts MP3. curl+unzip are used to install
+# Deno, the JS runtime yt-dlp needs to solve YouTube's n-challenge
+# (see https://github.com/yt-dlp/yt-dlp/wiki/EJS).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg curl unzip ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Deno (recommended runtime; yt-dlp auto-detects it on PATH).
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh \
+    && deno --version
 
 WORKDIR /app
 
