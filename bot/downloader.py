@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import shutil
+import tempfile
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,7 +52,15 @@ def _filesize_format(fmt: str) -> str:
 
 
 def _apply_cookies(opts: dict, cookies_file: Optional[Path]) -> None:
-    if cookies_file and cookies_file.exists():
+    if not (cookies_file and cookies_file.exists()):
+        return
+    # yt-dlp rewrites the cookie file when it closes, which fails if the file is
+    # mounted read-only. Work on a writable copy so the original is left intact.
+    try:
+        tmp = Path(tempfile.gettempdir()) / "ytdlp_cookies.txt"
+        shutil.copyfile(cookies_file, tmp)
+        opts["cookiefile"] = str(tmp)
+    except OSError:
         opts["cookiefile"] = str(cookies_file)
 
 
