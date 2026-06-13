@@ -12,6 +12,7 @@ import uuid
 from functools import partial
 
 from telegram import (
+    BotCommand,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Update,
@@ -208,8 +209,18 @@ async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Unhandled error", exc_info=context.error)
 
 
+async def _post_init(app: Application) -> None:
+    """Register the Telegram commands menu (the button next to the input box)."""
+    await app.bot.set_my_commands(
+        [
+            BotCommand("start", "Start / show welcome"),
+            BotCommand("help", "How to use the bot"),
+        ]
+    )
+
+
 def build_application(config: Config) -> Application:
-    app = Application.builder().token(config.bot_token).build()
+    app = Application.builder().token(config.bot_token).post_init(_post_init).build()
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
