@@ -73,11 +73,12 @@ class Config:
         # a bot" checks on YouTube and to access age/region-restricted content.
         cookies_file: Optional[Path] = None
         raw_cookies = os.environ.get("COOKIES_FILE", "").strip()
-        if not raw_cookies and Path("cookies.txt").exists():
+        if not raw_cookies and Path("cookies.txt").is_file():
             raw_cookies = "cookies.txt"
         if raw_cookies:
             candidate = Path(raw_cookies)
-            if candidate.exists():
+            # is_file() guards against an empty bind-mount showing up as a dir.
+            if candidate.is_file():
                 cookies_file = candidate
 
         return cls(

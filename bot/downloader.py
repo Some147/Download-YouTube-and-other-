@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 import tempfile
@@ -11,6 +12,8 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import yt_dlp
+
+logger = logging.getLogger(__name__)
 
 
 class DownloadError(Exception):
@@ -59,7 +62,7 @@ def _filesize_format(fmt: str) -> str:
 
 
 def _apply_cookies(opts: dict, cookies_file: Optional[Path]) -> None:
-    if not (cookies_file and cookies_file.exists()):
+    if not (cookies_file and cookies_file.is_file()):
         return
     # yt-dlp rewrites the cookie file when it closes, which fails if the file is
     # mounted read-only. Work on a writable copy so the original is left intact.
@@ -169,6 +172,11 @@ def download(
         if not candidates:
             raise DownloadError("Downloaded file could not be located.")
         filepath = candidates[0]
+
+    logger.info(
+        "Downloaded: vcodec=%s acodec=%s ext=%s (%s)",
+        info.get("vcodec"), info.get("acodec"), info.get("ext"), filepath.name,
+    )
 
     if fmt != "audio":
         _ensure_faststart(filepath)
