@@ -1,2 +1,3 @@
 python-telegram-bot[job-queue]==21.6
-yt-dlp>=2024.11.4
+# yt-dlp must stay current — YouTube breaks older versions frequently.
+yt-dlp>=2025.1.1
