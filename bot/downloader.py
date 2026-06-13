@@ -179,7 +179,7 @@ def download(
     )
 
     if fmt != "audio":
-        _ensure_faststart(filepath)
+        _make_mobile_compatible(filepath)
 
     filesize = filepath.stat().st_size
     if max_filesize_bytes and filesize > max_filesize_bytes:
@@ -200,28 +200,60 @@ def download(
     )
 
 
-def _ensure_faststart(path: Path) -> None:
-    """Move the MP4 moov atom to the front so mobile Telegram can stream it.
-
-    Without this, videos often play on desktop but show only a thumbnail and
-    audio on phones. This is a fast stream copy (no re-encoding).
-    """
-    if path.suffix.lower() != ".mp4" or not path.exists():
-        return
-    tmp = path.with_name(path.stem + "_fs.mp4")
+def _video_codec(path: Path) -> tuple[Optional[str], Optional[str]]:
+    """Return (codec_name, pix_fmt) of the first video stream, via ffprobe."""
     try:
-        subprocess.run(
+        out = subprocess.run(
             [
-                "ffmpeg", "-y", "-loglevel", "error", "-i", str(path),
-                "-c", "copy", "-movflags", "+faststart", str(tmp),
+                "ffprobe", "-v", "error", "-select_streams", "v:0",
+                "-show_entries", "stream=codec_name,pix_fmt",
+                "-of", "default=nw=1:nk=1", str(path),
             ],
-            check=True,
-            timeout=180,
-        )
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout.split()
     except (subprocess.SubprocessError, OSError):
-        tmp.unlink(missing_ok=True)
+        return None, None
+    codec = out[0] if len(out) > 0 else None
+    pix = out[1] if len(out) > 1 else None
+    return codec, pix
+
+
+def _make_mobile_compatible(path: Path) -> None:
+    """Ensure the video plays on mobile Telegram.
+
+    Mobile players only decode H.264 (8-bit yuv420p). Anything else (VP9, AV1,
+    HEVC, 10-bit) plays on desktop but shows only a thumbnail + audio on phones.
+    Transcode those to H.264; for already-compatible files just move the moov
+    atom to the front (fast stream copy) so the video can be streamed.
+    """
+    if not path.exists():
         return
-    tmp.replace(path)
+    codec, pix = _video_codec(path)
+    compatible = codec == "h264" and pix in (None, "yuv420p", "yuvj420p")
+
+    out = path.with_name(path.stem + "_mc.mp4")
+    if compatible:
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error", "-i", str(path),
+            "-c", "copy", "-movflags", "+faststart", str(out),
+        ]
+        timeout = 180
+    else:
+        logger.info("Transcoding %s (%s) to H.264 for mobile", path.name, codec)
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error", "-i", str(path),
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart", str(out),
+        ]
+        timeout = 1800
+    try:
+        subprocess.run(cmd, check=True, timeout=timeout)
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.warning("Mobile-compat pass failed (%s); sending original", exc)
+        out.unlink(missing_ok=True)
+        return
+    out.replace(path)
 
 
 def _extract_dimensions(info: dict) -> tuple[Optional[int], Optional[int]]:
