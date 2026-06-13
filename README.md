@@ -101,22 +101,28 @@ sudo systemctl enable --now telegram-downloader-bot
 
 `Restart=always` keeps it running. Follow logs: `journalctl -u telegram-downloader-bot -f`.
 
-### Option 3 — Railway (deploy from GitHub via Docker)
+### Option 3 — Koyeb (free, deploy from GitHub via Docker)
 
-This repo ships a `railway.json` that tells Railway to build with the `Dockerfile`
-and restart the bot on failure.
+Koyeb has a free instance and builds straight from the `Dockerfile`. Because the
+bot uses polling (no HTTP port), deploy it as a **Worker** service so Koyeb
+doesn't run an HTTP health check against it.
 
-1. On [railway.app](https://railway.app): **New Project → Deploy from GitHub repo**
-   and pick this repository / branch.
-2. Railway detects `railway.json` and builds the Docker image automatically
-   (no port needed — it's a background worker, not a web service).
-3. Open the service → **Variables** and add:
+1. On [koyeb.com](https://www.koyeb.com): **Create Service → GitHub** and pick
+   this repository / branch (authorize the Koyeb GitHub app if asked).
+2. **Builder:** choose **Dockerfile** (Koyeb auto-detects it).
+3. **Service type:** select **Worker** (not Web). This skips port/health checks.
+4. **Environment variables** → add:
    - `BOT_TOKEN` — your @BotFather token (**required**)
    - `MAX_FILESIZE_MB` — optional (default `50`)
    - `ALLOWED_USER_IDS` — optional, comma-separated
-4. Deploy. Check **Deployments → Logs** for `Bot started.`
+5. **Instance:** pick the **Free** instance, then **Deploy**.
+6. Watch the **Runtime logs** for `Bot started.`, then message your bot.
 
-> ⚠️ Set the token only in Railway Variables — never commit it to the repo.
+> ⚠️ Set the token only in Koyeb env vars — never commit it to the repo.
+> If you accidentally pick a *Web* service type, Koyeb will mark the deploy
+> unhealthy because the bot opens no port — switch the type to **Worker**.
+
+> A `railway.json` is also included if you ever switch back to Railway.
 
 ## Notes & limits
 
