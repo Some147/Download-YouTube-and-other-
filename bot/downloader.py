@@ -69,20 +69,20 @@ def _filesize_format(fmt: str) -> str:
     """
     if fmt == "audio":
         return "bestaudio/best"
-    # Prefer H.264 (avc1) video + AAC audio so the result plays on mobile
-    # Telegram, but always fall back to any best stream so we never hit
-    # "format not available".
+    # Prefer H.264 video for mobile, but never drop audio: accept any audio
+    # codec (transcode fixes it later) and fall back to a combined stream that
+    # already contains audio (e.g. HLS / format 18) when no separate audio-only
+    # track is offered.
     compat = "[vcodec~='^(avc|h264)']"
-    aac = "[acodec~='^(mp4a|aac)']"
     if fmt in {"720", "480", "360"}:
         h = fmt
         return (
-            f"bv*[height<={h}]{compat}+ba{aac}/"
-            f"b[height<={h}]{compat}/"
-            f"bv*[height<={h}]+ba/b[height<={h}]/bv*+ba/b"
+            f"bv*[height<={h}]{compat}+ba/"
+            f"bv*[height<={h}]+ba/"
+            f"b[height<={h}]{compat}/b[height<={h}]/bv*+ba/b"
         )
     # default "best"
-    return f"bv*{compat}+ba{aac}/b{compat}/bv*+ba/b"
+    return f"bv*{compat}+ba/bv*+ba/b{compat}/b"
 
 
 def _apply_cookies(opts: dict, cookies_file: Optional[Path]) -> None:
@@ -258,18 +258,21 @@ def _make_mobile_compatible(path: Path) -> None:
     codec, pix = _video_codec(path)
     compatible = codec == "h264" and pix in (None, "yuv420p", "yuvj420p")
 
+    # -map keeps the first video + first audio track (the "?" makes audio
+    # optional) so the audio is never dropped during the pass.
+    maps = ["-map", "0:v:0?", "-map", "0:a:0?"]
     out = path.with_name(path.stem + "_mc.mp4")
     if compatible:
         cmd = [
             "ffmpeg", "-y", "-loglevel", "error", "-i", str(path),
-            "-c", "copy", "-movflags", "+faststart", str(out),
+            *maps, "-c", "copy", "-movflags", "+faststart", str(out),
         ]
         timeout = 180
     else:
         logger.info("Transcoding %s (%s) to H.264 for mobile", path.name, codec)
         cmd = [
             "ffmpeg", "-y", "-loglevel", "error", "-i", str(path),
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+            *maps, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
             "-movflags", "+faststart", str(out),
         ]
