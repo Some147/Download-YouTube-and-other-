@@ -42,13 +42,12 @@ def _filesize_format(fmt: str) -> str:
     if fmt == "audio":
         return "bestaudio/best"
     if fmt in {"720", "480", "360"}:
-        height = fmt
-        return (
-            f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/"
-            f"best[height<={height}][ext=mp4]/best[height<={height}]/best"
-        )
+        h = fmt
+        # bv*/ba = any best video/audio; fall back to a combined stream, and
+        # finally to an uncapped best so we never hit "format not available".
+        return f"bv*[height<={h}]+ba/b[height<={h}]/bv*+ba/b"
     # default "best"
-    return "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+    return "bv*+ba/b"
 
 
 def _apply_cookies(opts: dict, cookies_file: Optional[Path]) -> None:
@@ -71,6 +70,7 @@ def probe(url: str, cookies_file: Optional[Path] = None) -> MediaInfo:
         "no_warnings": True,
         "noplaylist": True,
         "skip_download": True,
+        "socket_timeout": 30,
     }
     _apply_cookies(opts, cookies_file)
     try:
@@ -120,6 +120,7 @@ def download(
         "restrictfilenames": True,
         "retries": 3,
         "fragment_retries": 3,
+        "socket_timeout": 30,
     }
 
     if fmt == "audio":
