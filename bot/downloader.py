@@ -260,56 +260,65 @@ def _resolve_output_path(info: dict, ydl, download_dir: Path, token: str) -> Pat
     return files[0]
 
 
-def _video_codec(path: Path) -> tuple[Optional[str], Optional[str]]:
-    """Return (codec_name, pix_fmt) of the first video stream, via ffprobe."""
-    try:
-        out = subprocess.run(
-            [
-                "ffprobe", "-v", "error", "-select_streams", "v:0",
-                "-show_entries", "stream=codec_name,pix_fmt",
-                "-of", "default=nw=1:nk=1", str(path),
-            ],
-            capture_output=True, text=True, timeout=30, check=True,
-        ).stdout.split()
-    except (subprocess.SubprocessError, OSError):
-        return None, None
-    codec = out[0] if len(out) > 0 else None
-    pix = out[1] if len(out) > 1 else None
-    return codec, pix
+def _probe_streams(path: Path) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Return (vcodec, pix_fmt, acodec) of the first video/audio streams."""
+    def q(select: str, entries: str) -> list[str]:
+        try:
+            return subprocess.run(
+                [
+                    "ffprobe", "-v", "error", "-select_streams", select,
+                    "-show_entries", entries, "-of", "default=nw=1:nk=1", str(path),
+                ],
+                capture_output=True, text=True, timeout=30, check=True,
+            ).stdout.split()
+        except (subprocess.SubprocessError, OSError):
+            return []
+
+    v = q("v:0", "stream=codec_name,pix_fmt")
+    a = q("a:0", "stream=codec_name")
+    vcodec = v[0] if len(v) > 0 else None
+    pix = v[1] if len(v) > 1 else None
+    acodec = a[0] if len(a) > 0 else None
+    return vcodec, pix, acodec
 
 
 def _make_mobile_compatible(path: Path) -> None:
-    """Ensure the video plays on mobile Telegram.
+    """Ensure the video AND audio play on mobile Telegram.
 
-    Mobile players only decode H.264 (8-bit yuv420p). Anything else (VP9, AV1,
-    HEVC, 10-bit) plays on desktop but shows only a thumbnail + audio on phones.
-    Transcode those to H.264; for already-compatible files just move the moov
-    atom to the front (fast stream copy) so the video can be streamed.
+    Mobile players only decode H.264 video (8-bit yuv420p) and AAC audio.
+    Anything else (VP9/AV1/HEVC video, or Opus audio) plays on desktop but
+    shows only a thumbnail and/or has no sound on phones. Re-encode only the
+    streams that need it; if everything is already compatible just move the
+    moov atom to the front (fast stream copy) for streaming.
     """
     if not path.exists():
         return
-    codec, pix = _video_codec(path)
-    compatible = codec == "h264" and pix in (None, "yuv420p", "yuvj420p")
+    vcodec, pix, acodec = _probe_streams(path)
+    video_ok = vcodec == "h264" and pix in (None, "yuv420p", "yuvj420p")
+    # None acodec means there is no audio track -> nothing to fix.
+    audio_ok = acodec in (None, "aac")
 
     # -map keeps the first video + first audio track (the "?" makes audio
     # optional) so the audio is never dropped during the pass.
     maps = ["-map", "0:v:0?", "-map", "0:a:0?"]
     out = path.with_name(path.stem + "_mc.mp4")
-    if compatible:
-        cmd = [
-            "ffmpeg", "-y", "-loglevel", "error", "-i", str(path),
-            *maps, "-c", "copy", "-movflags", "+faststart", str(out),
-        ]
-        timeout = 180
+    if video_ok and audio_ok:
+        vcodec_args = ["-c", "copy"]
+    elif video_ok and not audio_ok:
+        # Video is fine; only the audio (e.g. Opus) needs converting to AAC.
+        logger.info("Re-encoding audio %s -> aac for %s", acodec, path.name)
+        vcodec_args = ["-c:v", "copy", "-c:a", "aac", "-b:a", "128k"]
     else:
-        logger.info("Transcoding %s (%s) to H.264 for mobile", path.name, codec)
-        cmd = [
-            "ffmpeg", "-y", "-loglevel", "error", "-i", str(path),
-            *maps, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+        logger.info("Transcoding %s (%s/%s) to H.264/AAC", path.name, vcodec, acodec)
+        vcodec_args = [
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
-            "-movflags", "+faststart", str(out),
         ]
-        timeout = 1800
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "error", "-i", str(path),
+        *maps, *vcodec_args, "-movflags", "+faststart", str(out),
+    ]
+    timeout = 180 if (video_ok and audio_ok) else 1800
     try:
         subprocess.run(cmd, check=True, timeout=timeout)
     except (subprocess.SubprocessError, OSError) as exc:
