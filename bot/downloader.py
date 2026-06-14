@@ -62,8 +62,8 @@ class MediaInfo:
     webpage_url: str
 
 
-def _filesize_format(fmt: str) -> str:
-    """Build a yt-dlp format string with a height cap.
+def _filesize_format(fmt: str, max_bytes: Optional[int] = None) -> str:
+    """Build a yt-dlp format string with a height cap and optional size cap.
 
     ``fmt`` is one of: ``best``, ``720``, ``480``, ``audio``.
     """
@@ -74,15 +74,26 @@ def _filesize_format(fmt: str) -> str:
     # already contains audio (e.g. HLS / format 18) when no separate audio-only
     # track is offered.
     compat = "[vcodec~='^(avc|h264)']"
+    # Size guard: prefer a video stream that fits Telegram (with headroom for
+    # the audio track) so yt-dlp doesn't pick a huge format and get truncated.
+    if max_bytes:
+        cap = max(5, int(max_bytes / 1024 / 1024) - 6)
+        size = f"[filesize_approx<{cap}M]"
+    else:
+        size = ""
     if fmt in {"720", "480", "360"}:
-        h = fmt
+        hb = f"[height<={fmt}]"
         return (
-            f"bv*[height<={h}]{compat}+ba/"
-            f"bv*[height<={h}]+ba/"
-            f"b[height<={h}]{compat}/b[height<={h}]/bv*+ba/b"
+            f"bv*{hb}{compat}{size}+ba/bv*{hb}{size}+ba/"
+            f"bv*{hb}{compat}+ba/bv*{hb}+ba/"
+            f"b{hb}{size}/b{hb}/bv*+ba/b"
         )
     # default "best"
-    return f"bv*{compat}+ba/bv*+ba/b{compat}/b"
+    return (
+        f"bv*{compat}{size}+ba/bv*{size}+ba/"
+        f"b{compat}{size}/b{size}/"
+        f"bv*{compat}+ba/bv*+ba/b"
+    )
 
 
 def _apply_cookies(opts: dict, cookies_file: Optional[Path]) -> None:
@@ -148,7 +159,7 @@ def download(
     outtmpl = str(download_dir / f"{token}_%(title).80s.%(ext)s")
 
     opts: dict = {
-        "format": _filesize_format(fmt),
+        "format": _filesize_format(fmt, max_filesize_bytes),
         "outtmpl": outtmpl,
         "noplaylist": True,
         "quiet": True,
@@ -173,9 +184,9 @@ def download(
         # Ensure the final container is mp4 when merging is needed.
         opts["merge_output_format"] = "mp4"
 
-    if max_filesize_bytes:
-        # Reject formats whose size is known to exceed the limit up front.
-        opts["max_filesize"] = max_filesize_bytes
+    # NB: we intentionally do NOT set opts["max_filesize"] — it aborts a
+    # download mid-stream and leaves a partial/soundless file. The size cap in
+    # the format selector plus the post-download check below handle limits.
 
     if progress_hook is not None:
         opts["progress_hooks"] = [progress_hook]
@@ -199,6 +210,15 @@ def download(
     )
 
     if fmt != "audio":
+        # If only the audio track fit (the video was too big to download whole),
+        # we'd otherwise send a soundless/playable-less webm — reject clearly.
+        vcodec, _, _ = _probe_streams(filepath)
+        if vcodec is None:
+            filepath.unlink(missing_ok=True)
+            raise DownloadError(
+                "Video is too large to send via Telegram. Try a lower quality "
+                "(480p) or Audio."
+            )
         _make_mobile_compatible(filepath)
 
     filesize = filepath.stat().st_size
