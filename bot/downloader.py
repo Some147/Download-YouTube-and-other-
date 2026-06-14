@@ -189,16 +189,9 @@ def download(
                 raise DownloadError("Download produced no result.")
             if info.get("_type") == "playlist" and info.get("entries"):
                 info = info["entries"][0]
-            filepath = Path(ydl.prepare_filename(info))
+            filepath = _resolve_output_path(info, ydl, download_dir, token)
     except yt_dlp.utils.DownloadError as exc:
         raise DownloadError(str(exc)) from exc
-
-    # Account for postprocessor extension changes (e.g. .webm -> .mp3/.mp4).
-    if not filepath.exists():
-        candidates = sorted(download_dir.glob(f"{token}_*"))
-        if not candidates:
-            raise DownloadError("Downloaded file could not be located.")
-        filepath = candidates[0]
 
     logger.info(
         "Downloaded: vcodec=%s acodec=%s ext=%s (%s)",
@@ -225,6 +218,37 @@ def download(
         height=height,
         duration=info.get("duration"),
     )
+
+
+def _resolve_output_path(info: dict, ydl, download_dir: Path, token: str) -> Path:
+    """Find the real downloaded file (the merged video, not a leftover fragment).
+
+    After merging, yt-dlp may leave the separate audio/video parts on disk
+    (e.g. ``*.f251.webm``). Trust the path yt-dlp records first, and only fall
+    back to scanning — picking the largest file, never a small audio fragment.
+    """
+    # yt-dlp records the final, post-merge/post-process path here.
+    for entry in info.get("requested_downloads") or []:
+        fp = entry.get("filepath")
+        if fp and Path(fp).exists():
+            return Path(fp)
+    fp = info.get("filepath")
+    if fp and Path(fp).exists():
+        return Path(fp)
+
+    candidate = Path(ydl.prepare_filename(info))
+    if candidate.exists():
+        return candidate
+
+    # Last resort: the largest matching file is the merged video, not a fragment.
+    files = sorted(
+        download_dir.glob(f"{token}_*"),
+        key=lambda p: p.stat().st_size,
+        reverse=True,
+    )
+    if not files:
+        raise DownloadError("Downloaded file could not be located.")
+    return files[0]
 
 
 def _video_codec(path: Path) -> tuple[Optional[str], Optional[str]]:
