@@ -227,27 +227,36 @@ def _resolve_output_path(info: dict, ydl, download_dir: Path, token: str) -> Pat
     (e.g. ``*.f251.webm``). Trust the path yt-dlp records first, and only fall
     back to scanning — picking the largest file, never a small audio fragment.
     """
+    def _complete(p: Path) -> bool:
+        # Ignore yt-dlp's in-progress/partial files.
+        return p.exists() and p.suffix not in (".part", ".ytdl", ".temp")
+
     # yt-dlp records the final, post-merge/post-process path here.
     for entry in info.get("requested_downloads") or []:
         fp = entry.get("filepath")
-        if fp and Path(fp).exists():
+        if fp and _complete(Path(fp)):
             return Path(fp)
     fp = info.get("filepath")
-    if fp and Path(fp).exists():
+    if fp and _complete(Path(fp)):
         return Path(fp)
 
     candidate = Path(ydl.prepare_filename(info))
-    if candidate.exists():
+    if _complete(candidate):
         return candidate
 
-    # Last resort: the largest matching file is the merged video, not a fragment.
+    # Last resort: the largest *complete* file is the merged video.
     files = sorted(
-        download_dir.glob(f"{token}_*"),
+        (p for p in download_dir.glob(f"{token}_*") if _complete(p)),
         key=lambda p: p.stat().st_size,
         reverse=True,
     )
     if not files:
-        raise DownloadError("Downloaded file could not be located.")
+        # Only partial files left — the download was aborted, usually because
+        # the video exceeded the Telegram size limit mid-download.
+        raise DownloadError(
+            "Video is too large to send via Telegram. Try a lower quality "
+            "(480p) or Audio."
+        )
     return files[0]
 
 
