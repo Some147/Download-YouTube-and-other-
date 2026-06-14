@@ -224,7 +224,12 @@ async def _post_init(app: Application) -> None:
 
 
 def build_application(config: Config) -> Application:
-    app = Application.builder().token(config.bot_token).post_init(_post_init).build()
+    builder = Application.builder().token(config.bot_token).post_init(_post_init)
+    if config.base_url:
+        # Route through a local Bot API server to allow uploads up to 2 GB.
+        builder = builder.base_url(config.base_url).base_file_url(config.base_file_url)
+        logger.info("Using local Bot API server at %s", config.bot_api_base)
+    app = builder.build()
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))

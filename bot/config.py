@@ -43,10 +43,23 @@ class Config:
     download_dir: Path = field(default_factory=lambda: Path("downloads"))
     allowed_user_ids: set[int] = field(default_factory=set)
     cookies_file: Optional[Path] = None
+    # Base URL of a local Bot API server (raises the 50 MB upload limit to 2 GB).
+    # Empty -> use the standard cloud Bot API.
+    bot_api_base: Optional[str] = None
 
     @property
     def max_filesize_bytes(self) -> int:
         return self.max_filesize_mb * 1024 * 1024
+
+    @property
+    def base_url(self) -> Optional[str]:
+        return f"{self.bot_api_base.rstrip('/')}/bot" if self.bot_api_base else None
+
+    @property
+    def base_file_url(self) -> Optional[str]:
+        return (
+            f"{self.bot_api_base.rstrip('/')}/file/bot" if self.bot_api_base else None
+        )
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -81,10 +94,13 @@ class Config:
             if candidate.is_file():
                 cookies_file = candidate
 
+        bot_api_base = os.environ.get("BOT_API_BASE", "").strip() or None
+
         return cls(
             bot_token=token,
             max_filesize_mb=max_mb,
             download_dir=download_dir,
             allowed_user_ids=allowed,
             cookies_file=cookies_file,
+            bot_api_base=bot_api_base,
         )

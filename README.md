@@ -166,11 +166,36 @@ Instagram **stories** additionally require active (≤24h) content and valid
 > cross-check the current [yt-dlp docs](https://github.com/yt-dlp/yt-dlp) and
 > wiki first — YouTube changes often and upstream is the source of truth.
 
+## Sending files larger than 50 MB
+
+The cloud Bot API caps bot uploads at **50 MB**. To send up to **2000 MB**, run
+the bundled [local Bot API server](https://github.com/tdlib/telegram-bot-api)
+(included as an optional `bigfiles` compose profile):
+
+1. Get an **`api_id`** and **`api_hash`** from https://my.telegram.org (free).
+2. In `.env` set:
+   ```
+   TELEGRAM_API_ID=123456
+   TELEGRAM_API_HASH=your_api_hash
+   BOT_API_BASE=http://telegram-bot-api:8081
+   MAX_FILESIZE_MB=2000
+   ```
+3. Start both the bot and the local server:
+   ```bash
+   docker compose --profile bigfiles up -d --build
+   ```
+
+The bot then routes through the local server (`base_url`) and can upload large
+files. To go back to the cloud API, clear `BOT_API_BASE` and run plain
+`docker compose up -d`.
+
+> A bot token can only run on one Bot API server at a time. If switching gives
+> a 409/"token used by another server" error, call
+> `https://api.telegram.org/bot<token>/logOut` once, then start the local server.
+> Large videos also use more disk, bandwidth, and CPU (transcoding) on your VPS.
+
 ## Notes & limits
 
-- Telegram bots can upload files up to **50 MB** by default. For larger files,
-  run your own [local Bot API server](https://github.com/tdlib/telegram-bot-api)
-  (up to 2000 MB) and raise `MAX_FILESIZE_MB`.
 - Respect the copyright and terms of service of the sites you download from.
 
 ## License
